@@ -8,12 +8,22 @@ USE_PROCD=1
 PROG=/usr/sbin/sshd
 CONF=/etc/ssh/sshd_config
 
+get_clients() {
+local clientid
+	clientid=$(pgrep -P $1 | xargs)
+	for clientid in $clientid
+	do
+		echo $clientid
+		get_clients $clientid
+	done
+}
+
 start_service() {
-	for keys in `awk '/^HostKey / { print $2 }' $CONF`
+	for keys in $(awk '/^HostKey / { print $2 }' $CONF)
 	do
 		# check for keys
-		type=`echo $keys | grep -o 'rsa\|ecdsa\|ed25519'`
-		[ ! -f $keys ] && {
+		type=$(echo $keys | grep -o 'rsa\|ecdsa\|ed25519')
+		[ -f $keys ] || {
 			# generate missing keys
 			[ -x /usr/bin/ssh-keygen ] && {
 				/usr/bin/ssh-keygen -N '' -t $type -f $keys 2>&- >&-
@@ -27,19 +37,20 @@ start_service() {
 
 	procd_open_instance
 	procd_add_mdns "ssh" "tcp" "$lport"
+	procd_set_param pidfile /var/run/sshd-$lport.pid
 	procd_set_param command $PROG -D -f $CONF
 	procd_close_instance
 }
 
 shutdown() {
 	local pid
+	pid=$(pgrep -a -f $PROG | grep $CONF | awk '{print $1}')
 
 	stop
 
-	# kill active clients
-	for pid in $(pidof sshd)
+	# kill only our active clients
+	for pid in $(get_clients $pid | awk '{arr[i++]=$0} END {while (i>0) print arr[--i] }')
 	do
-		[ "$pid" == "$$" ] && continue
 		[ -e "/proc/$pid/stat" ] && kill $pid
 	done
 }
