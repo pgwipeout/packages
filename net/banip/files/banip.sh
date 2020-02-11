@@ -399,8 +399,8 @@ f_iptadd()
 			else
 				f_iptrule "-I" "${wan_input} -p udp --dport 67:68 --sport 67:68 -j RETURN"
 			fi
-			f_iptrule "-A" "${wan_input} -j ${ban_chain}"
-			f_iptrule "-A" "${wan_forward} -j ${ban_chain}"
+			f_iptrule "-I" "${wan_input} -j ${ban_chain}"
+			f_iptrule "-I" "${wan_forward} -j ${ban_chain}"
 			for dev in ${ban_dev}
 			do
 				f_iptrule "${action:-"-A"}" "${ban_chain} -i ${dev} -m conntrack --ctstate NEW -m set --match-set ${src_name} src -j ${target_src}"
@@ -415,8 +415,8 @@ f_iptadd()
 			else
 				f_iptrule "-I" "${lan_input} -p udp --dport 67:68 --sport 67:68 -j RETURN"
 			fi
-			f_iptrule "-A" "${lan_input} -j ${ban_chain}"
-			f_iptrule "-A" "${lan_forward} -j ${ban_chain}"
+			f_iptrule "-I" "${lan_input} -j ${ban_chain}"
+			f_iptrule "-I" "${lan_forward} -j ${ban_chain}"
 			for dev in ${ban_dev}
 			do
 				f_iptrule "${action:-"-A"}" "${ban_chain} -o ${dev} -m conntrack --ctstate NEW -m set --match-set ${src_name} dst -j ${target_dst}"
@@ -758,6 +758,10 @@ f_main()
 							elif [ "${ban_sshdaemon}" = "sshd" ]
 							then
 								src_addon="$(printf "%s\\n" "${ssh_log}" | grep -F "error: maximum authentication attempts exceeded" | awk 'match($0,/([0-9]{1,3}\.){3}[0-9]{1,3}$/){ORS=" ";print substr($0,RSTART,RLENGTH)}')"
+								if [ -z "$src_addon" ]
+								then
+									src_addon="$(printf "%s\\n" "${ssh_log}" | grep -F "Disconnected from invalid user" | awk '{match($0,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/); ip = substr($0,RSTART,RLENGTH); print ip}' | uniq -cd | awk '$1> 5 || NR==1 { print $2 }')"
+								fi
 							fi
 							src_addon="${src_addon} $(printf "%s\\n" "${luci_log}" | awk 'match($0,/([0-9]{1,3}\.){3}[0-9]{1,3}$/){ORS=" ";print substr($0,RSTART,RLENGTH)}')"
 						;;
